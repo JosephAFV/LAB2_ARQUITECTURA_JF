@@ -1,0 +1,16 @@
+require('dotenv').config();
+const mongoose=require('mongoose');
+const {express,createApp,finish,wrap,fail,pick}=require('../../../shared/http');
+const Vacante=mongoose.model('Vacante',new mongoose.Schema({titulo:{type:String,required:true,trim:true},descripcion:String,requisitos:[String],salario:{type:Number,min:0},estado:{type:String,enum:['abierta','cerrada','pausada'],default:'abierta'}},{timestamps:true}));
+const states=['recibido','en_revision','entrevista','aprobado','rechazado'];
+const Candidato=mongoose.model('Candidato',new mongoose.Schema({nombre:{type:String,required:true,trim:true},apellido:{type:String,required:true,trim:true},email:{type:String,required:true,match:/^[^\s@]+@[^\s@]+\.[^\s@]+$/},vacante_id:{type:mongoose.Schema.Types.ObjectId,ref:'Vacante',required:true},estado:{type:String,enum:states,default:'recibido'},cv_url:String,notas:String},{timestamps:true}));
+const app=createApp('reclutamiento',async()=>{await mongoose.connection.db.admin().ping();});app.use(express.json());
+const vf=['titulo','descripcion','requisitos','salario','estado'];
+app.get('/reclutamiento/vacantes',wrap(async(req,res)=>res.json(await Vacante.find(req.query.estado?{estado:req.query.estado}:{}).sort({createdAt:-1}))));
+app.get('/reclutamiento/vacantes/:id',wrap(async(req,res)=>res.json(await Vacante.findById(req.params.id)||fail('Vacante no encontrada',404))));
+app.post('/reclutamiento/vacantes',wrap(async(req,res)=>res.status(201).json(await Vacante.create(pick(req.body,vf)))));
+app.put('/reclutamiento/vacantes/:id',wrap(async(req,res)=>res.json(await Vacante.findByIdAndUpdate(req.params.id,{$set:pick(req.body,vf)},{new:true,runValidators:true})||fail('Vacante no encontrada',404))));
+app.get('/reclutamiento/candidatos',wrap(async(req,res)=>res.json(await Candidato.find(pick(req.query,['vacante_id','estado'])).populate('vacante_id','titulo').sort({createdAt:-1}))));
+app.post('/reclutamiento/candidatos',wrap(async(req,res)=>{if(!req.body.vacante_id)fail('vacante_id requerido');if(!await Vacante.findById(req.body.vacante_id))fail('Vacante no encontrada',404);res.status(201).json(await Candidato.create(pick(req.body,['nombre','apellido','email','vacante_id','cv_url'])));}));
+app.put('/reclutamiento/candidatos/:id/estado',wrap(async(req,res)=>{if(!states.includes(req.body.estado))fail('Estado invalido');res.json(await Candidato.findByIdAndUpdate(req.params.id,{$set:pick(req.body,['estado','notas'])},{new:true,runValidators:true})||fail('Candidato no encontrado',404));}));
+finish(app);mongoose.connect(process.env.MONGO_URL).then(()=>app.listen(process.env.PORT||3003,'0.0.0.0')).catch(err=>{console.error(err);process.exit(1);});

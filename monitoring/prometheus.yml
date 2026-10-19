@@ -1,0 +1,6 @@
+global:
+  scrape_interval: 15s
+scrape_configs:
+  - job_name: rrhh
+    static_configs:
+      - targets: ['gateway:3000', 'empleados:3001', 'nomina:3002', 'reclutamiento:3003']

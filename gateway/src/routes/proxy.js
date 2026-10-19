@@ -1,0 +1,2 @@
+const {createProxyMiddleware,fixRequestBody}=require('http-proxy-middleware');
+module.exports=(target,name)=>createProxyMiddleware({target,changeOrigin:true,pathRewrite:path=>'/'+name+path,proxyTimeout:5000,timeout:6000,on:{proxyReq:fixRequestBody,error:(err,req,res)=>{if(!res.headersSent)res.writeHead(503,{'Content-Type':'application/json'});res.end(JSON.stringify({error:`Servicio ${name} no disponible`}));}}});

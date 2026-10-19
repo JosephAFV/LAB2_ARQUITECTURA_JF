@@ -1,0 +1,42 @@
+@base = http://localhost:3000
+@token = PEGA_AQUI_EL_TOKEN
+
+GET {{base}}/health
+
+### Login
+POST {{base}}/auth/login
+Content-Type: application/json
+
+{"usuario":"admin","password":"1234"}
+
+### Crear empleado
+POST {{base}}/api/empleados
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{"cedula":"1712345678","nombre":"Ana","apellido":"Torres","cargo":"Backend","departamento":"TI","salario_base":1500}
+
+### Listar empleados
+GET {{base}}/api/empleados
+Authorization: Bearer {{token}}
+
+### Nomina (ajustar empleado_id)
+POST {{base}}/api/nomina/calcular
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{"empleado_id":1,"periodo":"2025-04","salario_base":1500,"horas_extra":5,"bono":100,"descuentos":67.5}
+
+### Publicar vacante
+POST {{base}}/api/reclutamiento/vacantes
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{"titulo":"Backend Node.js","descripcion":"APIs RRHH","requisitos":["Node.js","Docker"],"salario":1800}
+
+### Registrar candidato (ajustar vacante_id)
+POST {{base}}/api/reclutamiento/candidatos
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{"nombre":"Carlos","apellido":"Perez","email":"carlos@example.com","vacante_id":"PEGA_ID_VACANTE"}

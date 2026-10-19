@@ -1,0 +1,150 @@
+name: rrhh-soa
+services:
+  gateway:
+    build:
+      context: .
+      args:
+        COMPONENT: gateway
+    restart: unless-stopped
+    environment:
+      REDIS_URL: redis://redis:6379
+      PORT: 3000
+      JWT_SECRET: ${JWT_SECRET:-secreto-local-practica-cambiar}
+      EMPLEADOS_URL: http://empleados:3001
+      NOMINA_URL: http://nomina:3002
+      RECLUTAMIENTO_URL: http://reclutamiento:3003
+    ports:
+      - "127.0.0.1:${GATEWAY_PORT:-3000}:3000"
+    depends_on:
+      redis:
+        condition: service_healthy
+      empleados:
+        condition: service_healthy
+      nomina:
+        condition: service_healthy
+      reclutamiento:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:'+process.env.PORT+'/health').then(r=>{if(!r.ok)process.exit(1)}).catch(()=>process.exit(1))"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 20s
+  empleados:
+    build:
+      context: .
+      args:
+        COMPONENT: services/empleados
+    restart: unless-stopped
+    environment:
+      REDIS_URL: redis://redis:6379
+      PORT: 3001
+      DATABASE_URL: postgres://postgres:${POSTGRES_PASSWORD:-rrhh_demo_1234}@postgres_emp:5432/empleados_db
+    depends_on:
+      redis:
+        condition: service_healthy
+      postgres_emp:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:'+process.env.PORT+'/health').then(r=>{if(!r.ok)process.exit(1)}).catch(()=>process.exit(1))"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 20s
+  nomina:
+    build:
+      context: .
+      args:
+        COMPONENT: services/nomina
+    restart: unless-stopped
+    environment:
+      REDIS_URL: redis://redis:6379
+      PORT: 3002
+      DATABASE_URL: postgres://postgres:${POSTGRES_PASSWORD:-rrhh_demo_1234}@postgres_nom:5432/nomina_db
+    depends_on:
+      redis:
+        condition: service_healthy
+      postgres_nom:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:'+process.env.PORT+'/health').then(r=>{if(!r.ok)process.exit(1)}).catch(()=>process.exit(1))"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 20s
+  reclutamiento:
+    build:
+      context: .
+      args:
+        COMPONENT: services/reclutamiento
+    restart: unless-stopped
+    environment:
+      REDIS_URL: redis://redis:6379
+      PORT: 3003
+      MONGO_URL: mongodb://mongo:27017/reclutamiento_db
+    depends_on:
+      redis:
+        condition: service_healthy
+      mongo:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:'+process.env.PORT+'/health').then(r=>{if(!r.ok)process.exit(1)}).catch(()=>process.exit(1))"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 20s
+  postgres_emp:
+    image: postgres:15-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: empleados_db
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-rrhh_demo_1234}
+    volumes:
+      - pg_emp_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d empleados_db"]
+      interval: 5s
+      timeout: 5s
+      retries: 12
+  postgres_nom:
+    image: postgres:15-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: nomina_db
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-rrhh_demo_1234}
+    volumes:
+      - pg_nom_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d nomina_db"]
+      interval: 5s
+      timeout: 5s
+      retries: 12
+  mongo:
+    image: mongo:7
+    restart: unless-stopped
+    volumes:
+      - mongo_data:/data/db
+    healthcheck:
+      test: ["CMD", "mongosh", "--quiet", "--eval", "db.adminCommand('ping').ok"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 12
+  prometheus:
+    image: prom/prometheus:v3.2.1
+    profiles: [monitoring]
+    ports:
+      - "127.0.0.1:9090:9090"
+    volumes:
+      - ./monitoring/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+volumes:
+  pg_emp_data:
+  pg_nom_data:
+  mongo_data:

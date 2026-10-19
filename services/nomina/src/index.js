@@ -1,0 +1,12 @@
+require('dotenv').config();
+const {Sequelize,DataTypes}=require('sequelize');
+const {express,createApp,finish,wrap}=require('../../../shared/http');
+const {calculate}=require('../../../shared/payroll');
+const db=new Sequelize(process.env.DATABASE_URL,{logging:false});
+const Nomina=db.define('Nomina',{empleado_id:{type:DataTypes.INTEGER,allowNull:false},periodo:{type:DataTypes.STRING(7),allowNull:false},horas_extra:DataTypes.INTEGER,...Object.fromEntries(['salario_base','valor_hora_extra','bono','descuentos','neto'].map(k=>[k,{type:DataTypes.DECIMAL(12,2),allowNull:false}]))},{tableName:'nominas',indexes:[{unique:true,fields:['empleado_id','periodo']}]});
+const app=createApp('nomina',()=>db.authenticate());app.use(express.json());
+app.post('/nomina/calcular',wrap(async(req,res)=>{const{extras,...data}=calculate(req.body);const row=await Nomina.create(data);res.status(201).json({...row.toJSON(),resumen:{salario_base:data.salario_base,extras,bono:data.bono,descuentos:data.descuentos,neto_a_pagar:data.neto}});}));
+app.param('empleado_id',(req,res,next,id)=>{if(!/^[1-9]\d*$/.test(id))return res.status(400).json({error:'ID invalido'});next();});
+app.get('/nomina/:empleado_id',wrap(async(req,res)=>res.json(await Nomina.findAll({where:{empleado_id:req.params.empleado_id},order:[['periodo','DESC']]}))));
+app.get('/nomina/:empleado_id/:periodo',wrap(async(req,res)=>{const row=await Nomina.findOne({where:req.params});row?res.json(row):res.status(404).json({error:'Registro no encontrado'});}));
+finish(app);db.sync().then(()=>app.listen(process.env.PORT||3002,'0.0.0.0')).catch(err=>{console.error(err);process.exit(1);});

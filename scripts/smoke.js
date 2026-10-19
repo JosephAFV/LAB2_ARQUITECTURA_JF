@@ -1,0 +1,33 @@
+const assert=require('node:assert/strict');
+const base=process.env.BASE_URL||'http://localhost:3000';
+let token;
+async function request(path,method='GET',body,status=200,authenticated=true){const r=await fetch(base+path,{method,headers:{'Content-Type':'application/json',...(authenticated&&token?{Authorization:'Bearer '+token}:{})},body:body?JSON.stringify(body):undefined,signal:AbortSignal.timeout(10000)});const data=await r.json();assert.equal(r.status,status,method+' '+path+' '+JSON.stringify(data));console.log('OK',status,method,path);return data;}
+(async()=>{
+ await request('/health');
+ await request('/api/empleados','GET',undefined,401,false);
+ await request('/auth/login','POST',{usuario:'admin',password:'incorrecta'},401,false);
+ token=(await request('/auth/login','POST',{usuario:'admin',password:'1234'})).token;
+ await request('/api/empleados','POST',{},400);
+ const employee={cedula:String(Date.now()).slice(-10),nombre:'Ana',apellido:'Torres',cargo:'Backend',departamento:'TI',salario_base:1500};
+ const e=await request('/api/empleados','POST',employee,201);
+ await request('/api/empleados','POST',employee,409);
+ await request('/api/empleados?departamento=TI');
+ await request('/api/empleados/'+e.id);
+ await request('/api/empleados/'+e.id,'PUT',{cargo:'Senior'});
+ const payroll={empleado_id:e.id,periodo:'2025-04',salario_base:1500,horas_extra:5,bono:100,descuentos:67.5};
+ const n=await request('/api/nomina/calcular','POST',payroll,201);assert.equal(n.resumen.neto_a_pagar,1579.38);
+ await request('/api/nomina/calcular','POST',payroll,409);
+ await request('/api/nomina/calcular','POST',{...payroll,periodo:'2025-13'},400);
+ await request('/api/nomina/'+e.id);await request('/api/nomina/'+e.id+'/2025-04');
+ const v=await request('/api/reclutamiento/vacantes','POST',{titulo:'Backend Node.js',salario:1800,requisitos:['Node.js','Docker']},201);
+ await request('/api/reclutamiento/vacantes');await request('/api/reclutamiento/vacantes/'+v._id);
+ await request('/api/reclutamiento/vacantes/'+v._id,'PUT',{descripcion:'APIs RRHH'});
+ const c=await request('/api/reclutamiento/candidatos','POST',{nombre:'Carlos',apellido:'Perez',email:'carlos@example.com',vacante_id:v._id},201);
+ await request('/api/reclutamiento/candidatos?vacante_id='+v._id);
+ await request('/api/reclutamiento/candidatos/'+c._id+'/estado','PUT',{estado:'entrevista',notas:'Perfil aprobado'});
+ await request('/api/reclutamiento/candidatos/'+c._id+'/estado','PUT',{estado:'inexistente'},400);
+ await request('/api/empleados/'+e.id,'DELETE');
+ assert.equal((await request('/api/empleados/'+e.id)).activo,false);
+ const metrics=await fetch(base+'/metrics');assert.equal(metrics.status,200);assert.match(await metrics.text(),/http_requests_total/);
+ console.log('Flujos completos verificados. Se conservaron registros de prueba.');
+})().catch(err=>{console.error(err);process.exitCode=1;});

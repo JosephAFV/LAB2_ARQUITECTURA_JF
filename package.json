@@ -1,0 +1,14 @@
+{
+  "name": "rrhh-soa",
+  "private": true,
+  "scripts": {
+    "start": "docker compose up --build -d --wait",
+    "stop": "docker compose down",
+    "test": "node --test tests/*.test.js",
+    "test:integration": "node scripts/smoke.js"
+  },
+  "workspaces": [
+    "gateway",
+    "services/*"
+  ]
+}
